@@ -29,7 +29,7 @@
 
 .v-gridlayout .v-slot {
     display: flex;
-    justify-content: left;
+    justify-content: flex-start;
     align-items: flex-start;
     flex-grow: 1;
     flex-basis: 0;

@@ -42,10 +42,9 @@ import java.util.stream.Collectors;
 public class GridLayout extends Composite<Div> implements HasSize, HasStyle {
 
   private static final String SLOT_CLASS_NAME = "v-slot";
-
   private static final String SPACING_CLASS_NAME = "v-spacing";
 
-  private Div div = new Div();
+  private final Div div = new Div();
 
   /**
    * Number of columns in the GridLayout.
@@ -66,6 +65,11 @@ public class GridLayout extends Composite<Div> implements HasSize, HasStyle {
    * Map of the components with data about the specified area in the grid layout.
    */
   private final Map<Component, ChildComponentData> componentsDataMap = new HashMap<>();
+
+  /**
+   * Map from original (unwrapped) component to its v-slot wrapper Div.
+   */
+  private final Map<Component, Div> wrapperMap = new HashMap<>();
 
   /**
    * Cursor X position: this is where the next component with unspecified x,y is inserted
@@ -109,7 +113,7 @@ public class GridLayout extends Composite<Div> implements HasSize, HasStyle {
    * @param columns the new number of columns in the grid layout.
    */
   public void setColumns(int columns) {
-    // The the param
+    // The param
     if (columns < 1) {
       throw new IllegalArgumentException(
           "The number of columns and rows in the grid must be at least 1");
@@ -124,30 +128,26 @@ public class GridLayout extends Composite<Div> implements HasSize, HasStyle {
     if (getColumns() > columns) {
       for (Entry<Component, ChildComponentData> entry : componentsDataMap.entrySet()) {
         if (entry.getValue().column2 >= columns) {
-          throw new OutOfBoundsException(new Area(entry.getValue(), (Component) entry.getKey()));
+          throw new OutOfBoundsException(new Area(entry.getValue(), entry.getKey()));
         }
       }
     }
 
-    if (colWidths == null)
-    {
+    if (colWidths == null) {
         // Use auto width for all columns
         colWidths = new ArrayList<>();
         colWidths.addAll(Collections.nCopies(columns, "auto"));
-    }
-    else
-    {
+    } else {
         ArrayList<String> oldColWidth= colWidths;
         colWidths = new ArrayList<>();
-        for (int i= 0; i < 0; i++)
-        {
+        for (int i= 0; i < columns; i++) {
             if (oldColWidth.size() > i)
             {
                 colWidths.add(oldColWidth.get(i));
             }
             else
             {
-                colWidths.addAll(Collections.nCopies(columns, "auto"));
+                colWidths.add("auto");
             }
         }
     }
@@ -172,7 +172,7 @@ public class GridLayout extends Composite<Div> implements HasSize, HasStyle {
    * @param rows the new number of rows in the grid layout.
    */
   public void setRows(int rows) {
-    // The the param
+    // The param
     if (rows < 1) {
       throw new IllegalArgumentException(
           "The number of columns and rows in the grid must be at least 1");
@@ -187,7 +187,7 @@ public class GridLayout extends Composite<Div> implements HasSize, HasStyle {
     if (getRows() > rows) {
       for (Entry<Component, ChildComponentData> entry : componentsDataMap.entrySet()) {
         if (entry.getValue().row2 >= rows) {
-          throw new OutOfBoundsException(new Area(entry.getValue(), (Component) entry.getKey()));
+          throw new OutOfBoundsException(new Area(entry.getValue(), entry.getKey()));
         }
       }
     }
@@ -345,7 +345,8 @@ public class GridLayout extends Composite<Div> implements HasSize, HasStyle {
       // Inserts the component to right place at the list
       // Respect top-down, left-right ordering
       final Iterator<Component> i = components.iterator();
-      component = wrapComponent(component);
+      Div wrapper = wrapComponent(component);
+      wrapperMap.put(component, wrapper);
       int index = 0;
       boolean done = false;
       while (!done && i.hasNext()) {
@@ -353,25 +354,26 @@ public class GridLayout extends Composite<Div> implements HasSize, HasStyle {
         if ((existingArea.row1 >= row1 && existingArea.column1 > column1)
             || existingArea.row1 > row1) {
           components.add(index, component);
-          setComponentArea(component, column1, row1, column2, row2);
+          setComponentArea(wrapper, column1, row1, column2, row2);
           done = true;
           // add to div
-          div.getElement().insertChild(index, component.getElement());
+          div.getElement().insertChild(index, wrapper.getElement());
         }
         index++;
       }
       if (!done) {
         components.addLast(component);
-        setComponentArea(component, column1, row1, column2, row2);
+        setComponentArea(wrapper, column1, row1, column2, row2);
         // add to div
-        div.getElement().appendChild(component.getElement());
+        div.getElement().appendChild(wrapper.getElement());
       }
-  
+
       componentsDataMap.put(component, new ChildComponentData(column1, row1, column2, row2));
-      
+
     } catch (IllegalArgumentException e) {
       components.remove(component);
       componentsDataMap.remove(component);
+      wrapperMap.remove(component);
       throw e;
     }
 
@@ -418,7 +420,7 @@ public class GridLayout extends Composite<Div> implements HasSize, HasStyle {
     for (Entry<Component, ChildComponentData> entry : componentsDataMap.entrySet()) {
       if (componentsOverlap(entry.getValue(), area.childData)) {
         // Component not added, overlaps with existing component
-        throw new OverlapsException(new Area(entry.getValue(), (Component) entry.getKey()));
+        throw new OverlapsException(new Area(entry.getValue(), entry.getKey()));
       }
     }
   }
@@ -430,6 +432,7 @@ public class GridLayout extends Composite<Div> implements HasSize, HasStyle {
     div.removeAll();
     components.clear();
     componentsDataMap.clear();
+    wrapperMap.clear();
     cursorX = 0;
     cursorY = 0;
   }
@@ -445,8 +448,11 @@ public class GridLayout extends Composite<Div> implements HasSize, HasStyle {
       return;
     }
 
+    Div wrapper = wrapperMap.remove(component);
     components.remove(component);
-    div.remove(component);
+    if (wrapper != null) {
+      div.remove(wrapper);
+    }
     componentsDataMap.remove(component);
   }
 
@@ -471,7 +477,7 @@ public class GridLayout extends Composite<Div> implements HasSize, HasStyle {
       ChildComponentData childData = entry.getValue();
       if (childData.column1 <= x && x <= childData.column2 && childData.row1 <= y
           && y <= childData.row2) {
-        return (Component) entry.getKey();
+        return entry.getKey();
       }
     }
     return null;
@@ -518,6 +524,15 @@ public class GridLayout extends Composite<Div> implements HasSize, HasStyle {
   public void setSpacing(boolean spacing) {
     div.getElement().getClassList().set(SPACING_CLASS_NAME, spacing);
   }
+
+  /**
+   * Returns whether spacing between components is enabled.
+   *
+   * @return true if spacing is enabled, false otherwise.
+   */
+  public boolean isSpacing() {
+    return div.getElement().getClassList().contains(SPACING_CLASS_NAME);
+  }
   
   /**
    * Sets the expand ratio of given column.
@@ -537,6 +552,7 @@ public class GridLayout extends Composite<Div> implements HasSize, HasStyle {
    * @param columnIndex 1 based column number
    * @param ratio expand ratio, please use parts of 100%
    */
+  @Deprecated
   public void setColumnExpandRatio(int columnIndex,
                                  float ratio)  {
     if (columnIndex < 1) {
@@ -761,7 +777,7 @@ public class GridLayout extends Composite<Div> implements HasSize, HasStyle {
       sb.append(" is already added to ");
       sb.append(existingArea.childData.column1);
       sb.append(",");
-      sb.append(existingArea.childData.column1);
+      sb.append(existingArea.childData.column2);
       sb.append(",");
       sb.append(existingArea.childData.row1);
       sb.append(",");
@@ -787,7 +803,7 @@ public class GridLayout extends Composite<Div> implements HasSize, HasStyle {
    * @author Vaadin Ltd.
    * @since 3.0
    */
-  public class OutOfBoundsException extends java.lang.RuntimeException {
+  public class OutOfBoundsException extends RuntimeException {
 
     private final Area areaOutOfBounds;
 

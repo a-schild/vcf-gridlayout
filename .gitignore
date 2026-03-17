@@ -45,3 +45,4 @@ webpack.config.js
 webpack.generated.js
 
 .vscode
+/vcf-gridlayout-demo/frontend/generated

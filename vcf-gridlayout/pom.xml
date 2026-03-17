@@ -6,7 +6,7 @@
 
     <groupId>org.vaadin.addons.componentfactory</groupId>
     <artifactId>vcf-gridlayout</artifactId>
-    <version>1.1.24-SNAPSHOT</version>
+    <version>1.1.25-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>GridLayout</name>
@@ -19,7 +19,7 @@
     </organization>
 
     <properties>
-        <vaadin.version>24.3.3</vaadin.version>
+        <vaadin.version>24.9.13</vaadin.version>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
